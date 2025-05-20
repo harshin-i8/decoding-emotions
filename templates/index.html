@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Emotion Decoder</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>🎯 Emotion Decoder for Social Media</h1>
+    <p class="subtitle">Type your text below and discover the emotional spectrum!</p>
+    
+    <textarea id="inputText" placeholder="Type a tweet, post or comment..."></textarea>
+    <div class="button-group">
+      <button onclick="detectEmotion()">Detect Emotion</button>
+      <button onclick="resetForm()">Clear</button>
+    </div>
+
+    <div id="result"></div>
+    <div id="summary" class="summary-box"></div>
+    <canvas id="emotionChart" width="400" height="250"></canvas>
+  </div>
+
+  <script>
+    const emojiMap = {
+      admiration: "👏", amusement: "😂", anger: "😠", annoyance: "😒", approval: "👍",
+      caring: "🤗", confusion: "😕", curiosity: "🤔", desire: "😍", disappointment: "😞",
+      disapproval: "👎", disgust: "🤮", embarrassment: "😳", excitement: "🤩", fear: "😱",
+      gratitude: "🙏", grief: "😭", joy: "😄", love: "❤️", nervousness: "😬",
+      optimism: "🌈", pride: "🏅", realization: "💡", relief: "😌", remorse: "😔",
+      sadness: "😢", surprise: "😮", neutral: "😐"
+    };
+
+    let chartInstance;
+
+    function resetForm() {
+      document.getElementById('inputText').value = '';
+      document.getElementById('result').innerHTML = '';
+      document.getElementById('summary').innerHTML = '';
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+    }
+
+    async function detectEmotion() {
+      const text = document.getElementById('inputText').value.trim();
+      if (!text) {
+        document.getElementById('result').innerHTML = `<p class="warning">Please enter some text.</p>`;
+        document.getElementById('summary').innerHTML = '';
+        return;
+      }
+
+      const response = await fetch('/predict', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ text })
+      });
+
+      const data = await response.json();
+      console.log(data);
+
+      if (data.emotions && data.emotions.length > 0) {
+        let html = `<h3>All Emotion Scores:</h3><ul class="emotion-list">`;
+        data.emotions.forEach(e => {
+          const emoji = emojiMap[e.label] || '';
+          html += `<li>${emoji} ${e.label} - <strong>${e.score}%</strong></li>`;
+        });
+        html += `</ul>`;
+        document.getElementById('result').innerHTML = html;
+
+        const top = data.top_emotion;
+        document.getElementById('summary').innerHTML = `
+          <p class="highlighted-result">👉 The dominant emotion is <strong>${top.label}</strong> (${top.score}%)</p>
+        `;
+
+        // Bar chart
+        const ctx = document.getElementById('emotionChart').getContext('2d');
+        if (chartInstance) {
+          chartInstance.destroy();
+        }
+        chartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: data.emotions.map(e => `${emojiMap[e.label] || ''} ${e.label}`),
+            datasets: [{
+              label: 'Emotion Confidence (%)',
+              data: data.emotions.map(e => e.score),
+              backgroundColor: '#0077ff'
+            }]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: 100
+              }
+            }
+          }
+        });
+      } else {
+        document.getElementById('result').innerHTML = `<h2>No emotions detected.</h2>`;
+        document.getElementById('summary').innerHTML = '';
+      }
+    }
+  </script>
+</body>
+</html>
